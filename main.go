@@ -29,7 +29,7 @@ func main() {
 
 	appPort := os.Getenv("APP_PORT")
 	if appPort == "" {
-		appPort = "8080" // Default port if not set
+		appPort = "8080"
 	}
 
 	listenAddr := fmt.Sprintf(":%s", appPort)

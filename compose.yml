@@ -12,13 +12,11 @@ services:
       MYSQL_PORT_INTERNAL: ${MYSQL_PORT_INTERNAL:-3306}
     depends_on:
       - db
-    # volumes: # <-- Comment out or remove this section
-    #   - .:/app # <-- This line causes the problem
     develop:
       watch:
         - action: rebuild
           path: .
-          target: /app # Target still relevant for context during rebuild
+          target: /app
           ignore:
             - .git/
             - vendor/
@@ -27,16 +25,11 @@ services:
             - .env
             - compose.yml
             - Dockerfile
-        # You could add sync actions for static assets if you had them:
-        # - action: sync
-        #   path: ./static
-        #   target: /app/static
 
   db:
-    image: mysql:8.0 # Use a specific MySQL version
+    image: mysql:8.0
     container_name: mysql-db-dev
     ports:
-      # Map host port (from .env) to MySQL default port in container
       - "${MYSQL_PORT}:3306"
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
@@ -44,7 +37,7 @@ services:
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
-      - mysql_data:/var/lib/mysql # Persist database data
+      - mysql_data:/var/lib/mysql
 
 volumes:
-  mysql_data: # Define the named volume
+  mysql_data:

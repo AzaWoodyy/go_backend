@@ -20,7 +20,7 @@ A basic Go project starter featuring:
     ```bash
     # If cloning:
     # git clone <your-repo-url>
-    # cd go-project-starter
+    # cd go_backend
 
     # If creating manually, ensure all files from above are in place.
     ```
@@ -29,7 +29,7 @@ A basic Go project starter featuring:
     Run these commands in the project's root directory:
 
     ```bash
-    go mod init github.com/yourusername/go-project-starter # Or your preferred module path
+    go mod init github.com/yourusername/yourrepo # Or your preferred module path
     go mod tidy
     ```
 
@@ -94,8 +94,7 @@ A basic Go project starter featuring:
     To stop without removing the database volume (preserving data):
 
     ```bash
-    docker compose down --volumes # This is incorrect, use below
-    docker compose down # This stops containers but preserves named volumes by default
+    docker compose down
     ```
 
     To stop *and* remove the database volume (deleting data):
