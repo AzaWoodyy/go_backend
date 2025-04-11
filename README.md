@@ -84,8 +84,7 @@ A basic Go project starter featuring:
 
 ## Stopping the Application
 
-1. If `docker compose watch` is running, press `Ctrl+C` in that terminal.
-2. To stop and remove the containers, network, and volumes defined in `compose.yml`, run:
+1. To stop and remove the containers, network, and volumes defined in `compose.yml`, run:
 
     ```bash
     docker compose down
