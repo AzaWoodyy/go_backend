@@ -1,0 +1,50 @@
+services:
+  app:
+    container_name: go-app-dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${APP_PORT}:${APP_PORT}"
+    env_file:
+      - .env
+    environment:
+      MYSQL_PORT_INTERNAL: ${MYSQL_PORT_INTERNAL:-3306}
+    depends_on:
+      - db
+    # volumes: # <-- Comment out or remove this section
+    #   - .:/app # <-- This line causes the problem
+    develop:
+      watch:
+        - action: rebuild
+          path: .
+          target: /app # Target still relevant for context during rebuild
+          ignore:
+            - .git/
+            - vendor/
+            - tmp/
+            - '*.md'
+            - .env
+            - compose.yml
+            - Dockerfile
+        # You could add sync actions for static assets if you had them:
+        # - action: sync
+        #   path: ./static
+        #   target: /app/static
+
+  db:
+    image: mysql:8.0 # Use a specific MySQL version
+    container_name: mysql-db-dev
+    ports:
+      # Map host port (from .env) to MySQL default port in container
+      - "${MYSQL_PORT}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql # Persist database data
+
+volumes:
+  mysql_data: # Define the named volume
