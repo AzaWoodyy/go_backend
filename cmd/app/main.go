@@ -11,6 +11,7 @@ import (
 
 	"github.com/AzaWoodyy/go_backend/internal/services"
 	_ "github.com/go-sql-driver/mysql"
+	_ "gorm.io/gorm"
 )
 
 const (
@@ -35,20 +36,25 @@ func championsHandler(ddragonSvc *services.DDragonService) http.HandlerFunc {
 		}
 		log.Printf("Latest version found: %s", latestVersion)
 
-		championData, err := ddragonSvc.GetChampions(latestVersion)
+		champions, err := ddragonSvc.GetChampions(latestVersion)
 		if err != nil {
 			log.Printf("ERROR: Failed to get champion data for version %s: %v", latestVersion, err)
 			http.Error(w, "Internal Server Error: Could not fetch champion data", http.StatusInternalServerError)
 			return
 		}
-		log.Printf("Successfully fetched data for %d champions", len(championData.Data))
+		log.Printf("Successfully fetched data for %d champions", len(champions))
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 
-		err = json.NewEncoder(w).Encode(championData)
+		err = json.NewEncoder(w).Encode(map[string]interface{}{
+			"version":   latestVersion,
+			"champions": champions,
+		})
 		if err != nil {
-			log.Printf("ERROR: Failed to encode champion data to JSON: %v", err)
+			log.Printf("ERROR: Failed to encode response: %v", err)
+			http.Error(w, "Internal Server Error: Could not encode response", http.StatusInternalServerError)
+			return
 		}
 	}
 }

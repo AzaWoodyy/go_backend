@@ -1,9 +1,7 @@
 package services
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,90 +11,81 @@ import (
 )
 
 const (
-	versionsURLTemplate = "https://ddragon.leagueoflegends.com/api/versions.json"
-	championURLTemplate = "https://ddragon.leagueoflegends.com/cdn/%s/data/en_US/champion.json"
-	httpTimeout         = 10 * time.Second
+	ddragonBaseURL = "https://ddragon.leagueoflegends.com"
 )
 
 type DDragonService struct {
-	client *http.Client
+	httpClient *http.Client
 }
 
 func NewDDragonService() *DDragonService {
 	return &DDragonService{
-		client: &http.Client{
-			Timeout: httpTimeout,
+		httpClient: &http.Client{
+			Timeout: 10 * time.Second,
 		},
 	}
 }
 
-func (s *DDragonService) GetLatestVersion() (string, error) {
-	ctx := context.Background()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, versionsURLTemplate, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
-	}
+type DDragonChampion struct {
+	ID    string   `json:"id"`
+	Key   string   `json:"key"`
+	Name  string   `json:"name"`
+	Title string   `json:"title"`
+	Blurb string   `json:"blurb"`
+	Tags  []string `json:"tags"`
+}
 
-	resp, err := s.client.Do(req)
+type DDragonResponse struct {
+	Data map[string]DDragonChampion `json:"data"`
+}
+
+func (s *DDragonService) GetLatestVersion() (string, error) {
+	resp, err := s.httpClient.Get(fmt.Sprintf("%s/api/versions.json", ddragonBaseURL))
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch versions: %w", err)
+		return "", err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("failed to fetch versions: status code %d, body: %s",
-			resp.StatusCode, string(bodyBytes))
-	}
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read versions response body: %w", err)
-	}
-
 	var versions []string
-	unmarshalErr := json.Unmarshal(bodyBytes, &versions)
-	if unmarshalErr != nil {
-		return "", fmt.Errorf("failed to unmarshal versions JSON: %w", unmarshalErr)
+	if err := json.NewDecoder(resp.Body).Decode(&versions); err != nil {
+		return "", err
 	}
 
 	if len(versions) == 0 {
-		return "", errors.New("no versions found in the response")
+		return "", fmt.Errorf("no versions available")
 	}
 
 	return versions[0], nil
 }
 
-func (s *DDragonService) GetChampions(version string) (*models.ChampionDataResponse, error) {
-	ctx := context.Background()
-	url := fmt.Sprintf(championURLTemplate, version)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+func (s *DDragonService) GetChampions(version string) ([]models.Champion, error) {
+	url := fmt.Sprintf("%s/cdn/%s/data/en_US/champion.json", ddragonBaseURL, version)
+	resp, err := s.httpClient.Get(url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch champions for version %s: %w", version, err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to fetch champions: status code %d, body: %s",
-			resp.StatusCode, string(bodyBytes))
-	}
-
-	bodyBytes, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read champions response body: %w", err)
+		return nil, err
 	}
 
-	var championData models.ChampionDataResponse
-	unmarshalErr := json.Unmarshal(bodyBytes, &championData)
-	if unmarshalErr != nil {
-		return nil, fmt.Errorf("failed to unmarshal champions JSON: %w", unmarshalErr)
+	var ddragonResp DDragonResponse
+	if err := json.Unmarshal(body, &ddragonResp); err != nil {
+		return nil, err
 	}
 
-	return &championData, nil
+	var champions []models.Champion
+	for _, champ := range ddragonResp.Data {
+		champions = append(champions, models.Champion{
+			ID:    champ.ID,
+			Key:   champ.Key,
+			Name:  champ.Name,
+			Title: champ.Title,
+			Blurb: champ.Blurb,
+		})
+	}
+
+	return champions, nil
 }

@@ -101,3 +101,17 @@ A basic Go project starter featuring:
     ```bash
     docker compose down -v
     ```
+
+## Setup the database
+
+### Generating migration
+
+```bash
+make db-diff
+```
+
+### Running the migration
+
+```bash
+make db-apply
+```
