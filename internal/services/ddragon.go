@@ -78,12 +78,27 @@ func (s *DDragonService) GetChampions(version string) ([]models.Champion, error)
 
 	var champions []models.Champion
 	for _, champ := range ddragonResp.Data {
+		// Create version object for this specific version
+		versionObj := models.Version{
+			Key: version,
+		}
+
+		// Create tag objects
+		var tags []models.Tag
+		for _, tagName := range champ.Tags {
+			tags = append(tags, models.Tag{
+				Key: tagName,
+			})
+		}
+
 		champions = append(champions, models.Champion{
-			ID:    champ.ID,
-			Key:   champ.Key,
-			Name:  champ.Name,
-			Title: champ.Title,
-			Blurb: champ.Blurb,
+			RiotID:   champ.ID,
+			Key:      champ.Key,
+			Name:     champ.Name,
+			Title:    champ.Title,
+			Blurb:    champ.Blurb,
+			Tags:     tags,
+			Versions: []models.Version{versionObj},
 		})
 	}
 

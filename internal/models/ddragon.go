@@ -2,7 +2,6 @@ package models
 
 type ChampionInfo struct {
 	Version string `json:"version"`
-	ID      string `json:"id"`
 	Key     string `json:"key"`
 	Name    string `json:"name"`
 	Title   string `json:"title"`

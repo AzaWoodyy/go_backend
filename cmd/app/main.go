@@ -1,7 +1,6 @@
 package main
 
 import (
-	_ "database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,9 +8,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/AzaWoodyy/go_backend/internal/config"
+	"github.com/AzaWoodyy/go_backend/internal/models"
+	"github.com/AzaWoodyy/go_backend/internal/repositories"
 	"github.com/AzaWoodyy/go_backend/internal/services"
-	_ "github.com/go-sql-driver/mysql"
-	_ "gorm.io/gorm"
 )
 
 const (
@@ -24,8 +24,8 @@ func helloHandler(w http.ResponseWriter, _ *http.Request) {
 	fmt.Fprintf(w, "Hello World!")
 }
 
-func championsHandler(ddragonSvc *services.DDragonService) http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
+func championsHandler(ddragonSvc *services.DDragonService, championRepo *repositories.ChampionRepository) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Received request for /champions")
 
 		latestVersion, err := ddragonSvc.GetLatestVersion()
@@ -44,13 +44,33 @@ func championsHandler(ddragonSvc *services.DDragonService) http.HandlerFunc {
 		}
 		log.Printf("Successfully fetched data for %d champions", len(champions))
 
+		// Save champions to database
+		if err := championRepo.SaveChampions(champions); err != nil {
+			log.Printf("ERROR: Failed to save champions to database: %v", err)
+			http.Error(w, "Internal Server Error: Could not save champion data", http.StatusInternalServerError)
+			return
+		}
+
+		// Get champions from database to ensure we have the complete data
+		dbChampions, err := championRepo.GetChampions()
+		if err != nil {
+			log.Printf("ERROR: Failed to get champions from database: %v", err)
+			http.Error(w, "Internal Server Error: Could not retrieve champion data", http.StatusInternalServerError)
+			return
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 
-		err = json.NewEncoder(w).Encode(map[string]interface{}{
-			"version":   latestVersion,
-			"champions": champions,
-		})
+		response := struct {
+			Version   string            `json:"version"`
+			Champions []models.Champion `json:"champions"`
+		}{
+			Version:   latestVersion,
+			Champions: dbChampions,
+		}
+
+		err = json.NewEncoder(w).Encode(response)
 		if err != nil {
 			log.Printf("ERROR: Failed to encode response: %v", err)
 			http.Error(w, "Internal Server Error: Could not encode response", http.StatusInternalServerError)
@@ -60,11 +80,25 @@ func championsHandler(ddragonSvc *services.DDragonService) http.HandlerFunc {
 }
 
 func main() {
+	// Initialize database connection
+	db, err := config.NewDB()
+	if err != nil {
+		log.Fatalf("FATAL: Could not connect to database: %v", err)
+	}
+
+	// Initialize services and repositories
 	ddragonSvc := services.NewDDragonService()
-	log.Println("DDragon service initialized.")
+	championRepo := repositories.NewChampionRepository(db)
+
+	// Auto-migrate the schema
+	log.Println("Starting database migration...")
+	if err := db.AutoMigrate(&models.Champion{}, &models.Tag{}, &models.Version{}); err != nil {
+		log.Fatalf("FATAL: Could not migrate database: %v", err)
+	}
+	log.Println("Database migration completed successfully")
 
 	http.HandleFunc("/", helloHandler)
-	http.HandleFunc("/champions", championsHandler(ddragonSvc))
+	http.HandleFunc("/champions", championsHandler(ddragonSvc, championRepo))
 	log.Println("Registered HTTP handlers for / and /champions")
 
 	appPort := os.Getenv("APP_PORT")
@@ -82,17 +116,7 @@ func main() {
 		IdleTimeout:  idleTimeout,
 	}
 
-	// Example: Reading DB config (keep commented if not used yet)
-	// dbHost := os.Getenv("MYSQL_HOST")
-	// dbPort := os.Getenv("MYSQL_PORT_INTERNAL")
-	// dbUser := os.Getenv("MYSQL_USER")
-	// dbPassword := os.Getenv("MYSQL_PASSWORD")
-	// dbName := os.Getenv("MYSQL_DATABASE")
-	// dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", dbUser, dbPassword, dbHost, dbPort, dbName)
-	// log.Printf("Database DSN (if used): %s", dsn)
-	// // db, err := sql.Open("mysql", dsn) ... connect and handle error ...
-
-	err := server.ListenAndServe()
+	err = server.ListenAndServe()
 	if err != nil {
 		log.Fatalf("FATAL: Could not start server: %s", err)
 	}

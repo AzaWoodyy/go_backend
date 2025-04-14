@@ -11,7 +11,8 @@ services:
     environment:
       MYSQL_PORT_INTERNAL: ${MYSQL_PORT_INTERNAL:-3306}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     develop:
       watch:
         - action: rebuild
@@ -38,6 +39,12 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
 volumes:
   mysql_data:
