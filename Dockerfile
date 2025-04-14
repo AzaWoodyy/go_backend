@@ -2,6 +2,9 @@ FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
+RUN apk add --no-cache git && \
+    go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
 COPY go.mod go.sum ./
 RUN go mod download
 
@@ -12,10 +15,18 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o /app/main \
     ./cmd/app
 
-FROM alpine:latest
+FROM golang:1.24-alpine
 
 WORKDIR /app
 
+RUN apk add --no-cache bash && \
+    go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
 COPY --from=builder /app/main /app/main
+COPY --from=builder /app/go.mod /app/go.sum /app/
+COPY --from=builder /app/cmd /app/cmd
+COPY --from=builder /app/internal /app/internal
+
+SHELL ["/bin/bash", "-c"]
 
 CMD ["/app/main"]
