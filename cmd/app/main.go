@@ -1,23 +1,30 @@
 package main
 
 import (
+	_ "database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
-	"github.com/AzaWoodyy/go_backend/internal/services"
-	"log"
+	"time"
 
+	"github.com/AzaWoodyy/go_backend/internal/services"
 	_ "github.com/go-sql-driver/mysql"
-	_ "database/sql"
 )
 
-func helloHandler(w http.ResponseWriter, r *http.Request) {
+const (
+	readTimeout  = 10 * time.Second
+	writeTimeout = 10 * time.Second
+	idleTimeout  = 120 * time.Second
+)
+
+func helloHandler(w http.ResponseWriter, _ *http.Request) {
 	fmt.Fprintf(w, "Hello World!")
 }
 
 func championsHandler(ddragonSvc *services.DDragonService) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		log.Println("Received request for /champions")
 
 		latestVersion, err := ddragonSvc.GetLatestVersion()
@@ -62,6 +69,13 @@ func main() {
 	listenAddr := fmt.Sprintf(":%s", appPort)
 	log.Printf("Server starting on port %s...", appPort)
 
+	server := &http.Server{
+		Addr:         listenAddr,
+		ReadTimeout:  readTimeout,
+		WriteTimeout: writeTimeout,
+		IdleTimeout:  idleTimeout,
+	}
+
 	// Example: Reading DB config (keep commented if not used yet)
 	// dbHost := os.Getenv("MYSQL_HOST")
 	// dbPort := os.Getenv("MYSQL_PORT_INTERNAL")
@@ -72,7 +86,7 @@ func main() {
 	// log.Printf("Database DSN (if used): %s", dsn)
 	// // db, err := sql.Open("mysql", dsn) ... connect and handle error ...
 
-	err := http.ListenAndServe(listenAddr, nil)
+	err := server.ListenAndServe()
 	if err != nil {
 		log.Fatalf("FATAL: Could not start server: %s", err)
 	}

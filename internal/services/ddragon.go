@@ -1,18 +1,21 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"github.com/AzaWoodyy/go_backend/internal/models"
+	"time"
 
-	_ "log"
+	"github.com/AzaWoodyy/go_backend/internal/models"
 )
 
 const (
 	versionsURLTemplate = "https://ddragon.leagueoflegends.com/api/versions.json"
 	championURLTemplate = "https://ddragon.leagueoflegends.com/cdn/%s/data/en_US/champion.json"
+	httpTimeout         = 10 * time.Second
 )
 
 type DDragonService struct {
@@ -21,12 +24,20 @@ type DDragonService struct {
 
 func NewDDragonService() *DDragonService {
 	return &DDragonService{
-		client: &http.Client{},
+		client: &http.Client{
+			Timeout: httpTimeout,
+		},
 	}
 }
 
 func (s *DDragonService) GetLatestVersion() (string, error) {
-	resp, err := s.client.Get(versionsURLTemplate)
+	ctx := context.Background()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, versionsURLTemplate, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := s.client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch versions: %w", err)
 	}
@@ -34,7 +45,8 @@ func (s *DDragonService) GetLatestVersion() (string, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("failed to fetch versions: status code %d, body: %s", resp.StatusCode, string(bodyBytes))
+		return "", fmt.Errorf("failed to fetch versions: status code %d, body: %s",
+			resp.StatusCode, string(bodyBytes))
 	}
 
 	bodyBytes, err := io.ReadAll(resp.Body)
@@ -43,20 +55,27 @@ func (s *DDragonService) GetLatestVersion() (string, error) {
 	}
 
 	var versions []string
-	if err := json.Unmarshal(bodyBytes, &versions); err != nil {
-		return "", fmt.Errorf("failed to unmarshal versions JSON: %w", err)
+	unmarshalErr := json.Unmarshal(bodyBytes, &versions)
+	if unmarshalErr != nil {
+		return "", fmt.Errorf("failed to unmarshal versions JSON: %w", unmarshalErr)
 	}
 
 	if len(versions) == 0 {
-		return "", fmt.Errorf("no versions found in the response")
+		return "", errors.New("no versions found in the response")
 	}
 
 	return versions[0], nil
 }
 
 func (s *DDragonService) GetChampions(version string) (*models.ChampionDataResponse, error) {
+	ctx := context.Background()
 	url := fmt.Sprintf(championURLTemplate, version)
-	resp, err := s.client.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := s.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch champions for version %s: %w", version, err)
 	}
@@ -64,7 +83,8 @@ func (s *DDragonService) GetChampions(version string) (*models.ChampionDataRespo
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to fetch champions: status code %d, body: %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("failed to fetch champions: status code %d, body: %s",
+			resp.StatusCode, string(bodyBytes))
 	}
 
 	bodyBytes, err := io.ReadAll(resp.Body)
@@ -73,8 +93,9 @@ func (s *DDragonService) GetChampions(version string) (*models.ChampionDataRespo
 	}
 
 	var championData models.ChampionDataResponse
-	if err := json.Unmarshal(bodyBytes, &championData); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal champions JSON: %w", err)
+	unmarshalErr := json.Unmarshal(bodyBytes, &championData)
+	if unmarshalErr != nil {
+		return nil, fmt.Errorf("failed to unmarshal champions JSON: %w", unmarshalErr)
 	}
 
 	return &championData, nil
